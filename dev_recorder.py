@@ -21,6 +21,7 @@ import time
 import threading
 import shutil
 import platform
+import glob
 from collections import deque
 from datetime import datetime
 from typing import Deque, Dict, Optional
@@ -28,6 +29,9 @@ from typing import Deque, Dict, Optional
 LOG_PATH = os.path.join(os.path.dirname(__file__), "dev_session.log")
 ENV_SNAPSHOT_PATH = os.path.join(os.path.dirname(__file__), "env_snapshot.json")
 DEFAULT_INTERVAL = 10
+# Rotation settings
+MAX_LOG_BYTES = int(os.environ.get("DEV_RECORDER_MAX_BYTES", 5 * 1024 * 1024))  # 5 MB default
+BACKUP_COUNT = int(os.environ.get("DEV_RECORDER_BACKUP_COUNT", 7))
 _running = False
 _thread: Optional[threading.Thread] = None
 _lock = threading.Lock()
@@ -47,9 +51,60 @@ def _now() -> str:
 
 
 def _write_log(entry: str) -> None:
-    with _lock:
-        with open(LOG_PATH, "a", encoding="utf-8") as f:
-            f.write(entry + "\n")
+    # Deprecated string writer kept for backwards compatibility; prefer _write_record
+    _write_record_raw({"type": "note", "msg": entry})
+
+
+def _rotate_log_if_needed() -> None:
+    try:
+        if not os.path.exists(LOG_PATH):
+            return
+        size = os.path.getsize(LOG_PATH)
+        if size <= MAX_LOG_BYTES:
+            return
+        # rotate by timestamp
+        ts = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
+        dst = f"{LOG_PATH}.{ts}"
+        try:
+            os.rename(LOG_PATH, dst)
+        except Exception:
+            # fallback to copy+truncate
+            shutil.copy2(LOG_PATH, dst)
+            with open(LOG_PATH, "w", encoding="utf-8"):
+                pass
+        # prune old rotations
+        pattern = f"{LOG_PATH}.*"
+        files = sorted(glob.glob(pattern), key=os.path.getmtime, reverse=True)
+        for old in files[BACKUP_COUNT:]:
+            try:
+                os.remove(old)
+            except Exception:
+                continue
+    except Exception:
+        # never fail recording because rotation failed
+        return
+
+
+def _write_record_raw(record: Dict) -> None:
+    """Write a pre-built record dict to the log as a JSON line (JSONL)."""
+    try:
+        _rotate_log_if_needed()
+        line = json.dumps(record, ensure_ascii=False)
+        with _lock:
+            with open(LOG_PATH, "a", encoding="utf-8") as f:
+                f.write(line + "\n")
+    except Exception:
+        # Best-effort: swallow errors to avoid crashing the recorder
+        return
+
+
+def _write_record(event_type: str, payload) -> None:
+    rec = {
+        "timestamp": _now(),
+        "type": event_type,
+        "payload": payload,
+    }
+    _write_record_raw(rec)
 
 
 def snapshot_env() -> Dict[str, str]:
@@ -68,8 +123,8 @@ def snapshot_env() -> Dict[str, str]:
         with open(ENV_SNAPSHOT_PATH, "w", encoding="utf-8") as f:
             json.dump(minimal, f, indent=2, ensure_ascii=False)
     except Exception as e:
-        _write_log(f"[env-snapshot-error] {_now()} {e}")
-    _write_log(f"[env-snapshot] {_now()} saved to {ENV_SNAPSHOT_PATH}")
+        _write_record("env-snapshot-error", {"error": str(e)})
+    _write_record("env-snapshot", {"path": ENV_SNAPSHOT_PATH})
     return minimal
 
 
@@ -95,9 +150,11 @@ def _read_history_files() -> Dict[str, str]:
         try:
             if os.path.exists(p):
                 with open(p, "r", encoding="utf-8", errors="ignore") as f:
-                    found[p] = f.read()
+                    content = f.read()
+                    # don't store full content in main log; keep size metadata and a small sample
+                    found[p] = {"size": len(content), "sample": content[-1024:]}
         except Exception as e:
-            _write_log(f"[history-read-error] {_now()} {p} {e}")
+            _write_record("history-read-error", {"path": p, "error": str(e)})
     return found
 
 
@@ -107,7 +164,7 @@ def record_command(cmd: str) -> None:
     Call this from tools or wrappers that want to annotate the session with explicit commands.
     """
     recent_commands.appendleft(cmd)
-    _write_log(f"[cmd] {_now()} {cmd}")
+    _write_record("cmd", {"cmd": cmd})
 
 
 def _gather_system_snapshot(top_n: int = 5) -> Dict:
@@ -170,18 +227,18 @@ def take_snapshot() -> None:
     """Take a system snapshot and append it to the log as JSON."""
     snap = _gather_system_snapshot()
     try:
-        _write_log("[snapshot] " + json.dumps(snap, ensure_ascii=False))
+        _write_record("snapshot", snap)
     except Exception as e:
-        _write_log(f"[snapshot-error] {_now()} {e}")
+        _write_record("snapshot-error", {"error": str(e)})
 
 
 def _recorder_loop(interval: int) -> None:
-    _write_log(f"--- session start {_now()} interval={interval}s ---")
+    _write_record("session-start", {"interval": interval})
     # initial snapshots
     snapshot_env()
     histories = _read_history_files()
     for p, content in histories.items():
-        _write_log(f"[history-file] {_now()} {p} size={len(content)}")
+        _write_record("history-file", {"path": p, "meta": content})
 
     while _running:
         try:
@@ -190,7 +247,7 @@ def _recorder_loop(interval: int) -> None:
             if recent_commands:
                 with _lock:
                     sample = list(recent_commands)[:10]
-                _write_log(f"[recent-cmds] {_now()} {sample}")
+                _write_record("recent-cmds", {"commands": sample})
         except Exception as e:
             _write_log(f"[loop-error] {_now()} {e}")
         time.sleep(interval)
@@ -213,7 +270,7 @@ def stop() -> None:
     _running = False
     if _thread is not None:
         _thread.join(timeout=2)
-    _write_log(f"--- session stop {_now()} ---")
+    _write_record("session-stop", {})
 
 
 def get_recent_commands(n: int = 20) -> list:
