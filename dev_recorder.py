@@ -22,6 +22,7 @@ import threading
 import shutil
 import platform
 import glob
+import gzip
 from collections import deque
 from datetime import datetime
 from typing import Deque, Dict, Optional
@@ -72,8 +73,20 @@ def _rotate_log_if_needed() -> None:
             shutil.copy2(LOG_PATH, dst)
             with open(LOG_PATH, "w", encoding="utf-8"):
                 pass
+        # compress rotated file to .gz to save space
+        try:
+            with open(dst, "rb") as f_in:
+                with gzip.open(dst + ".gz", "wb") as f_out:
+                    shutil.copyfileobj(f_in, f_out)
+            try:
+                os.remove(dst)
+            except Exception:
+                pass
+        except Exception:
+            # if compression fails, keep the uncompressed rotation
+            pass
         # prune old rotations
-        pattern = f"{LOG_PATH}.*"
+        pattern = f"{LOG_PATH}.*.gz"
         files = sorted(glob.glob(pattern), key=os.path.getmtime, reverse=True)
         for old in files[BACKUP_COUNT:]:
             try:
@@ -96,6 +109,12 @@ def _write_record_raw(record: Dict) -> None:
     except Exception:
         # Best-effort: swallow errors to avoid crashing the recorder
         return
+
+
+def force_rotate() -> None:
+    """Public API to force rotation/compression immediately."""
+    _rotate_log_if_needed()
+    _write_record("rotation", {"action": "forced"})
 
 
 def _write_record(event_type: str, payload) -> None:

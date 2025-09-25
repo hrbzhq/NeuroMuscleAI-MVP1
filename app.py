@@ -45,3 +45,31 @@ else:
     st.write("No recorded commands yet.")
 
 st.caption("Logs and snapshots are stored under this folder (private): ./dev_session.log, ./env_snapshot.json")
+
+# Download and maintenance actions
+st.markdown("---")
+colA, colB = st.columns(2)
+with colA:
+    if st.button("Download latest log"):
+        # prefer compressed rotated files if present
+        logfile = os.path.join(os.path.dirname(__file__), "dev_session.log")
+        gz_candidates = sorted([p for p in os.listdir(os.path.dirname(__file__)) if p.startswith("dev_session.log.") and p.endswith(".gz")])
+        data = None
+        path_used = logfile
+        if gz_candidates:
+            path_used = os.path.join(os.path.dirname(__file__), gz_candidates[-1])
+            with open(path_used, "rb") as f:
+                data = f.read()
+        elif os.path.exists(logfile):
+            with open(logfile, "rb") as f:
+                data = f.read()
+
+        if data:
+            st.download_button("Download log", data, file_name=os.path.basename(path_used), mime="application/gzip")
+        else:
+            st.warning("No log file found yet.")
+
+with colB:
+    if st.button("Force rotate logs (compress)"):
+        dev_recorder.force_rotate()
+        st.success("Rotation requested")
