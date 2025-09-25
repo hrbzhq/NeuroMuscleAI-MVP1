@@ -27,6 +27,8 @@ from collections import deque
 from datetime import datetime
 from typing import Deque, Dict, Optional
 
+from . import recorder_io
+
 LOG_PATH = os.path.join(os.path.dirname(__file__), "dev_session.log")
 ENV_SNAPSHOT_PATH = os.path.join(os.path.dirname(__file__), "env_snapshot.json")
 DEFAULT_INTERVAL = 10
@@ -57,55 +59,15 @@ def _write_log(entry: str) -> None:
 
 
 def _rotate_log_if_needed() -> None:
-    try:
-        if not os.path.exists(LOG_PATH):
-            return
-        size = os.path.getsize(LOG_PATH)
-        if size <= MAX_LOG_BYTES:
-            return
-        # rotate by timestamp
-        ts = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
-        dst = f"{LOG_PATH}.{ts}"
-        try:
-            os.rename(LOG_PATH, dst)
-        except Exception:
-            # fallback to copy+truncate
-            shutil.copy2(LOG_PATH, dst)
-            with open(LOG_PATH, "w", encoding="utf-8"):
-                pass
-        # compress rotated file to .gz to save space
-        try:
-            with open(dst, "rb") as f_in:
-                with gzip.open(dst + ".gz", "wb") as f_out:
-                    shutil.copyfileobj(f_in, f_out)
-            try:
-                os.remove(dst)
-            except Exception:
-                pass
-        except Exception:
-            # if compression fails, keep the uncompressed rotation
-            pass
-        # prune old rotations
-        pattern = f"{LOG_PATH}.*.gz"
-        files = sorted(glob.glob(pattern), key=os.path.getmtime, reverse=True)
-        for old in files[BACKUP_COUNT:]:
-            try:
-                os.remove(old)
-            except Exception:
-                continue
-    except Exception:
-        # never fail recording because rotation failed
-        return
+    # delegate to recorder_io with configured params
+    recorder_io.rotate_if_needed(LOG_PATH, max_bytes=MAX_LOG_BYTES, backup_count=BACKUP_COUNT)
 
 
 def _write_record_raw(record: Dict) -> None:
     """Write a pre-built record dict to the log as a JSON line (JSONL)."""
     try:
-        _rotate_log_if_needed()
-        line = json.dumps(record, ensure_ascii=False)
-        with _lock:
-            with open(LOG_PATH, "a", encoding="utf-8") as f:
-                f.write(line + "\n")
+        # delegate actual I/O to recorder_io (keeps this module testable)
+        recorder_io.write_record_raw(record, LOG_PATH, max_bytes=MAX_LOG_BYTES, backup_count=BACKUP_COUNT)
     except Exception:
         # Best-effort: swallow errors to avoid crashing the recorder
         return
@@ -113,7 +75,7 @@ def _write_record_raw(record: Dict) -> None:
 
 def force_rotate() -> None:
     """Public API to force rotation/compression immediately."""
-    _rotate_log_if_needed()
+    recorder_io.force_rotate(LOG_PATH, max_bytes=MAX_LOG_BYTES, backup_count=BACKUP_COUNT)
     _write_record("rotation", {"action": "forced"})
 
 
