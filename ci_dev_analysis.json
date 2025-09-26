@@ -1,0 +1,33 @@
+{
+  "analysis": {
+    "event_frequency": {
+      "session-start": 3,
+      "env-snapshot": 3,
+      "history-file": 4,
+      "snapshot": 4,
+      "session-stop": 1
+    },
+    "session_stats": {
+      "total_sessions": 1,
+      "avg_duration_hours": 0.0036953330555555552,
+      "max_duration_hours": 0.0036953330555555552,
+      "min_duration_hours": 0.0036953330555555552
+    },
+    "resource_usage": {
+      "avg_cpu_percent": 3.8,
+      "max_cpu_percent": 9.6,
+      "avg_memory_percent": 60.275,
+      "max_memory_percent": 61.4
+    },
+    "activity_period": {
+      "start_time": "2025-09-26T00:16:24.927646+00:00",
+      "end_time": "2025-09-26T00:35:46.090847+00:00",
+      "total_days": 0
+    }
+  },
+  "insights": [
+    "💡 Short sessions detected. Consider batching related tasks."
+  ],
+  "generated_at": "2025-09-26T09:03:52.502369",
+  "total_events": 15
+}

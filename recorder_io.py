@@ -10,12 +10,13 @@ import os
 import shutil
 import glob
 import gzip
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Dict, Optional
 
 
 def _now_ts() -> str:
-    return datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S UTC")
+    # timezone-aware UTC ISO timestamp
+    return datetime.now(timezone.utc).isoformat()
 
 
 def rotate_if_needed(log_path: str, max_bytes: int = 5 * 1024 * 1024, backup_count: int = 7) -> None:
@@ -25,7 +26,7 @@ def rotate_if_needed(log_path: str, max_bytes: int = 5 * 1024 * 1024, backup_cou
         size = os.path.getsize(log_path)
         if size <= max_bytes:
             return
-        ts = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
+        ts = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
         dst = f"{log_path}.{ts}"
         try:
             os.rename(log_path, dst)

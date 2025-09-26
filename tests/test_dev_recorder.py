@@ -3,6 +3,14 @@ import time
 import json
 import tempfile
 
+import sys
+import os
+
+# Ensure the project root (private scaffold) is on sys.path for imports
+ROOT = os.path.dirname(os.path.dirname(__file__))
+if ROOT not in sys.path:
+    sys.path.insert(0, ROOT)
+
 import dev_recorder
 
 

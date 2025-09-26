@@ -1,0 +1,166 @@
+name: Automated CI/CD Pipeline
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+  schedule:
+    # Run daily at 2 AM UTC
+    - cron: '0 2 * * *'
+
+jobs:
+  ci-pipeline:
+    runs-on: ubuntu-latest
+    
+    strategy:
+      matrix:
+        python-version: [3.8, 3.9, '3.10', '3.11']
+    
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v3
+      with:
+        python-version: ${{ matrix.python-version }}
+    
+    - name: Cache dependencies
+      uses: actions/cache@v3
+      with:
+        path: ~/.cache/pip
+        key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
+        restore-keys: |
+          ${{ runner.os }}-pip-
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        pip install pytest pytest-json-report psutil matplotlib pandas
+    
+    - name: Run Environment Checks
+      run: |
+        cd NeuroMuscleAI-MVP1
+        python ci_pipeline.py --step env --auto-fix
+      continue-on-error: false
+    
+    - name: Run Code Quality Checks
+      run: |
+        cd NeuroMuscleAI-MVP1
+        python ci_pipeline.py --step quality
+      continue-on-error: false
+    
+    - name: Run Tests
+      run: |
+        cd NeuroMuscleAI-MVP1
+        python ci_pipeline.py --step tests
+      continue-on-error: false
+    
+    - name: Run Development Analysis
+      run: |
+        cd NeuroMuscleAI-MVP1
+        python ci_pipeline.py --step analysis
+      continue-on-error: true  # Analysis might fail if no log exists
+    
+    - name: Run Full Pipeline
+      run: |
+        cd NeuroMuscleAI-MVP1
+        python ci_pipeline.py --auto-fix --output ci_results_${{ matrix.python-version }}.json
+    
+    - name: Upload CI Results
+      uses: actions/upload-artifact@v3
+      if: always()
+      with:
+        name: ci-results-python${{ matrix.python-version }}
+        path: NeuroMuscleAI-MVP1/ci_results_${{ matrix.python-version }}.json
+    
+    - name: Upload Analysis Reports
+      uses: actions/upload-artifact@v3
+      if: always()
+      with:
+        name: analysis-reports-python${{ matrix.python-version }}
+        path: |
+          NeuroMuscleAI-MVP1/dev_analysis_report.json
+          NeuroMuscleAI-MVP1/dev_analysis_report.md
+    
+  ai-model-tests:
+    runs-on: ubuntu-latest
+    needs: ci-pipeline
+    
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Set up Python 3.9
+      uses: actions/setup-python@v3
+      with:
+        python-version: 3.9
+    
+    - name: Install AI dependencies
+      run: |
+        python -m pip install --upgrade pip
+        cd NeuroMuscleAI-MVP
+        pip install -r requirements.txt
+    
+    - name: Run AI Model Tests
+      run: |
+        cd NeuroMuscleAI-MVP
+        python -m pytest tests/ -v --tb=short
+    
+    - name: Test Model Loading
+      run: |
+        cd NeuroMuscleAI-MVP
+        python -c "
+        from model import build_model
+        import torch
+        model = build_model(pretrained=False)  # Don't download for CI
+        print('Model built successfully')
+        x = torch.randn(1, 3, 224, 224)
+        y = model(x)
+        print(f'Model output shape: {y.shape}')
+        "
+  
+  security-scan:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Run Security Scan
+      uses: pypa/gh-action-pip-audit@v1.0.8
+      with:
+        inputs: NeuroMuscleAI-MVP/requirements.txt NeuroMuscleAI-MVP1/requirements.txt
+        
+  deployment-check:
+    runs-on: ubuntu-latest
+    needs: [ci-pipeline, ai-model-tests]
+    if: github.ref == 'refs/heads/main'
+    
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Check Deployment Readiness
+      run: |
+        echo "🚀 Checking deployment readiness..."
+        
+        # Check for required files
+        required_files=("NeuroMuscleAI-MVP/app.py" "NeuroMuscleAI-MVP/requirements.txt" "NeuroMuscleAI-MVP1/app.py")
+        for file in "${required_files[@]}"; do
+          if [ -f "$file" ]; then
+            echo "✅ $file exists"
+          else
+            echo "❌ $file missing"
+            exit 1
+          fi
+        done
+        
+        echo "✅ Deployment check passed!"
+    
+    - name: Create Deployment Summary
+      run: |
+        echo "## 🚀 Deployment Summary" >> $GITHUB_STEP_SUMMARY
+        echo "- **Status**: Ready for deployment" >> $GITHUB_STEP_SUMMARY
+        echo "- **Python Version**: 3.9+" >> $GITHUB_STEP_SUMMARY
+        echo "- **AI Model**: NeuroMuscleAI-MVP" >> $GITHUB_STEP_SUMMARY
+        echo "- **Monitoring**: Dev Recorder Active" >> $GITHUB_STEP_SUMMARY
+        echo "- **Testing**: Full test suite passing" >> $GITHUB_STEP_SUMMARY

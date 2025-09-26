@@ -1,0 +1,111 @@
+{
+  "timestamp": "2025-09-26T09:03:46.193449",
+  "pipeline_version": "1.0.0",
+  "steps": {
+    "environment": {
+      "status": "passed",
+      "report": {
+        "python_version": "3.13.3 (tags/v3.13.3:6280bb5, Apr  8 2025, 14:47:33) [MSC v.1943 64 bit (AMD64)]",
+        "venv_exists": true,
+        "requirements_exists": true,
+        "missing_packages": [],
+        "parent_exists": true,
+        "parent_files": [
+          ".gitignore",
+          ".pre-commit-config.yaml",
+          "app.py",
+          "batch_utils.py",
+          "CODEOWNERS",
+          "config.yaml",
+          "CONTRIBUTING.md",
+          "demo_run.py",
+          "i18n.py",
+          "inference.py",
+          "LICENSE",
+          "MAINTAINERS.md",
+          "model.py",
+          "README.md",
+          "README_zh.md",
+          "RELEASE.md",
+          "requirements-ci.txt",
+          "requirements.txt",
+          "sample_overlay.jpg",
+          "train.py"
+        ],
+        "git_dirty": "git error: Command '['git', 'status', '--porcelain']' returned non-zero exit status 128.",
+        "system_resources": {
+          "cpu_percent": 6.0,
+          "memory_percent": 58.1,
+          "disk_usage": {
+            "C:": 85.9,
+            "E:": 25.9
+          }
+        },
+        "fixes_applied": [
+          "Installed packages: pillow"
+        ]
+      },
+      "issues": [],
+      "auto_fixes_applied": [
+        "Installed packages: pillow"
+      ]
+    },
+    "code_quality": {
+      "status": "passed",
+      "issues_count": 5,
+      "issues": [
+        ".\\app.py:130 - Line too long (140 chars)",
+        ".\\dev_recorder.py:133 - Line too long (127 chars)",
+        ".\\software_checker.py:73 - Line too long (122 chars)",
+        ".\\ci_pipeline.py - 6 TODO comments",
+        ".\\ci_pipeline.py - 6 FIXME comments"
+      ],
+      "files_checked": 9
+    },
+    "tests": {
+      "status": "passed",
+      "exit_code": 0,
+      "passed": 3,
+      "failed": 0,
+      "errors": 0,
+      "output": "============================= test session starts =============================\nplatform win32 -- Python 3.13.3, pytest-8.4.2, pluggy-1.6.0 -- C:\\Users\\daxia\\AppData\\Local\\Programs\\Python\\Python313\\python.exe\ncachedir: .pytest_cache\nrootdir: E:\\tools\\begin\\NeuroMuscleAI-MVP1\nplugins: anyio-4.10.0, langsmith-0.4.21\ncollecting ... collected 3 items\n\ntests/test_dev_recorder.py::test_snapshot_and_record PASSED              [ 33%]\ntests/test_recorder_concurrency.py::test_concurrent_writes_trigger_rotation PASSED [ 66%]\ntests/test_recorder_io.py::test_write_and_rotate PASSED                  [100%]\n\n============================== 3 passed in 2.09s ==============================\n",
+      "stderr": "",
+      "json_report": {}
+    },
+    "dev_analysis": {
+      "status": "passed",
+      "analysis": {
+        "event_frequency": {
+          "session-start": 3,
+          "env-snapshot": 3,
+          "history-file": 4,
+          "snapshot": 4,
+          "session-stop": 1
+        },
+        "session_stats": {
+          "total_sessions": 1,
+          "avg_duration_hours": 0.0036953330555555552,
+          "max_duration_hours": 0.0036953330555555552,
+          "min_duration_hours": 0.0036953330555555552
+        },
+        "resource_usage": {
+          "avg_cpu_percent": 3.8,
+          "max_cpu_percent": 9.6,
+          "avg_memory_percent": 60.275,
+          "max_memory_percent": 61.4
+        },
+        "activity_period": {
+          "start_time": "2025-09-26T00:16:24.927646+00:00",
+          "end_time": "2025-09-26T00:35:46.090847+00:00",
+          "total_days": 0
+        }
+      },
+      "insights": [
+        "💡 Short sessions detected. Consider batching related tasks."
+      ],
+      "report_file": "ci_dev_analysis.json"
+    }
+  },
+  "overall_status": "passed",
+  "failed_steps": []
+}

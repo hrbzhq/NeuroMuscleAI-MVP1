@@ -24,10 +24,15 @@ import platform
 import glob
 import gzip
 from collections import deque
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Deque, Dict, Optional
 
-from . import recorder_io
+try:
+    # when running as a package
+    from . import recorder_io
+except Exception:
+    # when running tests or direct import where package context is not set
+    import recorder_io
 
 LOG_PATH = os.path.join(os.path.dirname(__file__), "dev_session.log")
 ENV_SNAPSHOT_PATH = os.path.join(os.path.dirname(__file__), "env_snapshot.json")
@@ -50,7 +55,8 @@ except Exception:
 
 
 def _now() -> str:
-    return datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S UTC")
+    # use timezone-aware UTC ISO timestamps
+    return datetime.now(timezone.utc).isoformat()
 
 
 def _write_log(entry: str) -> None:
